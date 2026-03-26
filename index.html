@@ -92,10 +92,38 @@
             .top-bar h2 { font-size: 1rem; }
             .algo-details strong { display: block; margin-bottom: 2px; }
         }
+    /* --- 新增：全螢幕廣告遮罩 --- */
+        #ad-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.95); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
+        .ad-box { width: 90%; max-width: 600px; background: #fff; border-radius: 8px; position: relative; padding: 20px; text-align: center; box-shadow: 0 0 30px rgba(0,255,204,0.3); }
+        #close-ad-btn { position: absolute; top: -15px; right: -15px; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 1.2rem; font-weight: bold; border: 2px solid #fff; cursor: pointer; box-shadow: 0 0 10px #000; transition: 0.2s; z-index: 10001; }
+        #close-ad-btn:hover { transform: scale(1.1); background: #ff3377; }
+        .ad-countdown { color: #aaa; font-size: 0.75rem; margin-bottom: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
+<!-- Google AdSense 基礎資源載入 -->
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-這裡換成你的發布商ID" crossorigin="anonymous"></script>
 
+<!-- 全螢幕廣告遮罩層 -->
+<div id="ad-overlay">
+    <div class="ad-box">
+        <button id="close-ad-btn" onclick="closeAdOverlay()" style="display:none;">X</button>
+        <div class="ad-countdown" id="ad-text">廣告載入中...</div>
+        
+        <!-- 這裡放你從 AdSense 複製的廣告碼 (包含 ins 與 script) -->
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-你的號碼"
+             data-ad-slot="你的號碼"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+        <script>
+             (adsbygoogle = window.adsbygoogle ||[]).push({});
+        </script>
+        <!-- 廣告碼結束 -->
+
+    </div>
+</div>
 <div id="toast"></div>
 
 <div class="box">
@@ -243,7 +271,7 @@
     const fieldIds =['quantum', 'fluid', 'finance', 'cauchy', 'weierstrass', 'mandelbrot', 'prime', 'riemann', 'lorenz', 'chirikov'];
     let currLang = 'zh-TW', currentField = 'quantum', historyLogs =[];
     let isRunning = false, shouldAbort = false, isFullscreen = false;
-
+let generateClickCount = 0; // 紀錄點擊次數
     function init() {
         const select = document.getElementById('lang-select');
         for(let lang in dict) select.innerHTML += `<option value="${lang}" ${lang==='zh-TW'?'selected':''}>${dict[lang].name}</option>`;
@@ -369,13 +397,24 @@
     }
 
     // --- 核心運算 ---
-    async function toggleProjector() {
+    async function toggleProjector(fromAd = false) {
         const btn = document.getElementById("run_btn");
         const t = dict[currLang].t;
 
         if (isRunning) {
             shouldAbort = true; btn.innerText = "Aborting..."; return;
         }
+
+        // --- 新增：第三次點擊攔截邏輯 ---
+        if (!fromAd) {
+            generateClickCount++;
+            if (generateClickCount === 3) {
+                showAdOverlay();
+                generateClickCount = 0; // 歸零，讓下一個第三次也能觸發
+                return; // 終止目前的產生，等待廣告關閉
+            }
+        }
+        // ------------------------------
 
         isRunning = true; shouldAbort = false;
         btn.classList.add("running"); btn.innerText = t.btn_stop;
@@ -451,7 +490,36 @@
         isRunning = false; shouldAbort = false;
         btn.classList.remove("running"); btn.innerText = dict[currLang].t.btn_run;
     }
+// --- 廣告控制邏輯 ---
+    function showAdOverlay() {
+        const overlay = document.getElementById('ad-overlay');
+        const closeBtn = document.getElementById('close-ad-btn');
+        const adText = document.getElementById('ad-text');
+        
+        overlay.style.display = 'flex';
+        closeBtn.style.display = 'none'; // 先隱藏 X 按鈕
+        
+        // 為了確保廣告有載入，且強制停留幾秒鐘才能關閉 (避免誤觸與違規)
+        let timeLeft = 3;
+        adText.innerText = `贊助廣告將在 ${timeLeft} 秒後可關閉...`;
+        
+        const timer = setInterval(() => {
+            timeLeft--;
+            if (timeLeft > 0) {
+                adText.innerText = `贊助廣告將在 ${timeLeft} 秒後可關閉...`;
+            } else {
+                clearInterval(timer);
+                adText.innerText = "感謝您的支持";
+                closeBtn.style.display = 'block'; // 顯示 X 按鈕
+            }
+        }, 1000);
+    }
 
+    function closeAdOverlay() {
+        document.getElementById('ad-overlay').style.display = 'none';
+        // 廣告關閉後，自動接續產生隨機數 (傳入 true 代表是從廣告回來，不計次數)
+        toggleProjector(true);
+    }
     window.onload = init;
 </script>
 
